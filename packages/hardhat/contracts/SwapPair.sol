@@ -3,14 +3,14 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import "./lib/Math.sol";
 import "./interfaces/IERC20.sol";
-import "solmate/tokens/ERC20.sol";
+import "solmate/src/tokens/ERC20.sol";
 
 // a new SwapPair liquidity pool is made by the factory for unique token pairs 
 
 contract SwapPair is ERC20, Math {
 
     // the amount to be subtracted from the initial LP provider
-    // to be used as safety measure to ensure that the pool always has a minimum value
+    // to be used as safety measure to ensure that the pool always has a minimum value 
     uint256 constant MIN_LIQUIDITY = 1000; 
 
     address public token0;
@@ -21,9 +21,10 @@ contract SwapPair is ERC20, Math {
 
     event Mint(address indexed sender, uint256 reserve0, uint256 reserve1);
     event Sync(uint256 reserve0, uint256 reserve1);
+    event Burn(address indexed sender, uint256 reserve0, uint256 reserve1);
 
-    constructor(address token0_, address token1_) 
-        ERC20("Liquidity Pair Token", "LP", 18)
+    constructor(address token0_, address token1_, string memory _name, string memory _symbol) 
+        ERC20(_name, _symbol, 18)
     {
         token0 = token0_;
         token1 = token1_;
@@ -63,7 +64,30 @@ contract SwapPair is ERC20, Math {
     }
 
 
-    function burn() public {}
+    function burn() public {
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));
+        // retrieving the balance of LP tokens for the sender's address.
+        uint256 liquidity = balanceOf[msg.sender];
+
+        uint256 amount0 = (liquidity * balance0) / totalSupply;
+        uint256 amount1 = (liquidity * balance1) / totalSupply;
+
+        require(amount0 >= 0 || amount1 >= 0, "Insufficient liquidity burned");
+
+        _burn(msg.sender, liquidity);
+
+        _safeTransfer(token0, msg.sender, amount0);
+        _safeTransfer(token1, msg.sender, amount1);
+
+        // update to reflect new balances after transfer
+        balance0 = IERC20(token0).balanceOf(address(this));
+        balance1 = IERC20(token1).balanceOf(address(this));
+
+        _update(balance0, balance1);
+
+        emit Burn(msg.sender, amount0, amount1);
+    }
 
     function sync() public {}
 
@@ -72,6 +96,16 @@ contract SwapPair is ERC20, Math {
         reserve1 = balance1;
 
         emit Sync(reserve0, reserve1);
+    }
+
+    function _safeTransfer(address token, address to, uint256 amount) private {
+        // the call function is a lower level function used to invoke the "transfer" function of the token contract
+        // the inputs to the call function are the encoded function signature and arguments
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSignature("transfer(adress, uint256)", to, amount)
+        );
+        // if the call was successful, 'data' should be empty or decode to 'true'.
+        require(success || data.length == 0 || !abi.decode(data, (bool)), "Transfer failed");
     }
 
 

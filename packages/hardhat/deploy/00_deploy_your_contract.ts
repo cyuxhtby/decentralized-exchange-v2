@@ -22,24 +22,24 @@ const deployYourContract: DeployFunction = async function (hre: HardhatRuntimeEn
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
 
-  const token0 = await deploy("MockERC20", {
+  const token0 = await deploy("MockToken", {
     from: deployer,
     args: ["Token0", "TK0"],
     log: true,
     autoMine: true,
   });
 
-  const token1 = await deploy("MockERC20", {
+  const token1 = await deploy("MockToken", {
     from: deployer,
     args: ["Token1", "TK1"],
     log: true,
     autoMine: true,
   });
 
-  const lpTokenName = "LPToken";
-  const lpTokenSymbol = "LPT";
+  const lpTokenName = "Liquidity Provider Token";
+  const lpTokenSymbol = "LP";
 
-  await deploy("SwapPair", {
+  await deploy("LiquidityPair", {
     from: deployer,
     // Contract constructor arguments
     args: [token0.address, token1.address, lpTokenName, lpTokenSymbol],
@@ -50,13 +50,13 @@ const deployYourContract: DeployFunction = async function (hre: HardhatRuntimeEn
   });
 
   // Get the deployed contract to interact with it after deploying.
-  const swapPair = await hre.ethers.getContract<Contract>("SwapPair", deployer);
-  console.log("Token 0", await swapPair.token0());
-  console.log("Token 1", await swapPair.token1());
+  const LiquidityPair = await hre.ethers.getContract<Contract>("LiquidityPair", deployer);
+  console.log("Token 0", await LiquidityPair.token0());
+  console.log("Token 1", await LiquidityPair.token1());
 };
 
 export default deployYourContract;
 
 // Tags are useful if you have multiple deploy files and only want to run one of them.
 // e.g. yarn deploy --tags YourContract
-deployYourContract.tags = ["SwapPair"];
+deployYourContract.tags = ["LiquidityPair"];

@@ -3,11 +3,11 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import "./lib/Math.sol";
 import "./interfaces/IERC20.sol";
-import "solmate/src/tokens/ERC20.sol";
+import "./lib/ERC20.sol";
 
-// a new SwapPair liquidity pool is made by the factory for unique token pairs 
+// a new LiquidityPair liquidity pool is made by the factory for unique token pairs 
 
-contract SwapPair is ERC20, Math {
+contract LiquidityPair is ERC20, Math {
 
     // the amount to be subtracted from the initial LP provider
     // to be used as safety measure to ensure that the pool always has a minimum value 
@@ -89,7 +89,15 @@ contract SwapPair is ERC20, Math {
         emit Burn(msg.sender, amount0, amount1);
     }
 
-    function sync() public {}
+    function sync() public {
+        // (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
+        _update(
+            IERC20(token0).balanceOf(address(this)),
+            IERC20(token1).balanceOf(address(this))
+        )
+        // reserve0_,
+        // reserve1_
+    }
 
     function _update(uint256 balance0, uint256 balance1) private {
         reserve0 = balance0;

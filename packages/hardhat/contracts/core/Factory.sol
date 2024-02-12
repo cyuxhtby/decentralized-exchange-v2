@@ -1,8 +1,8 @@
 // SPDX-Licence-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import "./LiquidityPair.sol";
-import "./interfaces/ILiquidityPair.sol";
+import { LiquidityPair } from "./LiquidityPair.sol";
+import { ILiquidityPair } from "../interfaces/ILiquidityPair.sol";
 
 contract Factory {
 

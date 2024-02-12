@@ -1,9 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "./lib/Math.sol";
-import "./lib/ERC20.sol";
-import "./interfaces/IERC20.sol";
+import { Math } from "../lib/Math.sol";
+import { ERC20 } from "../lib/ERC20.sol";
+import { IERC20 } from "../interfaces/IERC20.sol";
 
 // a new LiquidityPair liquidity pool is made by the factory for unique token pairs 
 

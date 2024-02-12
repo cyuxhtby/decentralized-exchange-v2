@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
 import { Math } from "../lib/Math.sol";
@@ -43,15 +43,13 @@ contract LiquidityPair is ERC20, Math {
     /// @notice mints new liquidity tokens and updates the reserves of the liquidity pair
     /// @dev on initial call, liquidity is calculated as √(tokenA*tokenB) minus the one-time burn amount, effectively sets the initial price based on the ratio of the supplied tokens
     /// @dev on subsequent calls, the liquidity is calculated as the minimum of the ratios of the added amounts to the existing reserves
-    function mint() public {
+    function mint(address to) public returns (uint256 liquidity){
         (uint256 _reserve0, uint256 _reserve1, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 =  IERC20(token1).balanceOf(address(this));
         uint256 amount0 = balance0 - _reserve0;
         uint256 amount1 = balance1 -  _reserve1;
     
-        uint256 liquidity;
-
         if (totalSupply == 0){
             liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY_NEEDED;
             _mint(address(0), MINIMUM_LIQUIDITY_NEEDED); 
@@ -64,9 +62,9 @@ contract LiquidityPair is ERC20, Math {
 
         require(liquidity >= 0, "Insufficient liquidity minted");
 
-        _mint(msg.sender, liquidity);
+        _mint(to, liquidity);
         _update(balance0, balance1, _reserve0, _reserve1);
-        emit Mint(msg.sender, amount0, amount1);  
+        emit Mint(to, amount0, amount1);  
     }
 
     function getReserves() public view returns (uint256, uint256 , uint32) {

@@ -9,7 +9,7 @@ import { IERC20 } from "../interfaces/IERC20.sol";
 
 contract LiquidityPair is ERC20, Math {
 
-    // amount to be burned upon initial deposit
+    // single amount to be burned upon initial deposit
     uint256 constant MINIMUM_LIQUIDITY_NEEDED = 1000; 
 
     address public token0;
@@ -55,9 +55,10 @@ contract LiquidityPair is ERC20, Math {
         if (totalSupply == 0){
             liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY_NEEDED;
             _mint(address(0), MINIMUM_LIQUIDITY_NEEDED); 
+        } else {
             liquidity = Math.min(
-                (amount0 + totalSupply) / _reserve0,
-                (amount1 + totalSupply) / _reserve1
+                (amount0 * totalSupply) / _reserve0,
+                (amount1 * totalSupply) / _reserve1
             );
         }
 
@@ -65,7 +66,6 @@ contract LiquidityPair is ERC20, Math {
 
         _mint(msg.sender, liquidity);
         _update(balance0, balance1, _reserve0, _reserve1);
-        
         emit Mint(msg.sender, amount0, amount1);  
     }
 
@@ -161,6 +161,4 @@ contract LiquidityPair is ERC20, Math {
         // if the call was successful, 'data' should be empty or decode to 'true'.
         require(success && (data.length == 0 || abi.decode(data, (bool))), "Transfer failed");
     }
-
-
 }

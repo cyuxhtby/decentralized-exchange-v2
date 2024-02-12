@@ -16,6 +16,7 @@ contract Factory {
         return allPairs.length;
     }
 
+    /// @notice uses create2 opcode for deterministic address creation, takes in (value, offset, length, salt)
     function createPair(address tokenA, address tokenB) external returns (address pair) {
         require(tokenA != tokenB, "Identical addresses");
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA); // formal ordering of pairs
@@ -24,8 +25,7 @@ contract Factory {
         bytes memory bytecode = type(LiquidityPair).creationCode; // factory pattern
         bytes32 salt = keccak256(abi.encodePacked(token0, token1)); // identification value for pair
         assembly {
-            // create2 allows for deterministic address creation
-            pair := create2(0, add(bytecode, 32), mload(bytecode), salt) // create2(value, offset, length, salt)
+            pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
         ILiquidityPair(pair).initialize(token0, token1);
         getPair[token0][token1] = pair;

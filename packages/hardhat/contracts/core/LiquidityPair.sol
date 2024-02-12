@@ -2,16 +2,15 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import "./lib/Math.sol";
-import "./interfaces/IERC20.sol";
 import "./lib/ERC20.sol";
+import "./interfaces/IERC20.sol";
 
 // a new LiquidityPair liquidity pool is made by the factory for unique token pairs 
 
 contract LiquidityPair is ERC20, Math {
 
-    // the amount to be subtracted from the initial LP provider
-    // to be used as safety measure to ensure that the pool always has a minimum value 
-    uint256 constant MIN_LIQUIDITY = 1000; 
+    // amount to be burned upon initial deposit
+    uint256 constant MINIMUM_LIQUIDITY_NEEDED = 1000; 
 
     address public token0;
     address public token1;
@@ -21,7 +20,7 @@ contract LiquidityPair is ERC20, Math {
     uint256 private reserve1;
     uint32 private blockTimestampLast;
 
-    // Time-Wighted Average Price - comulative sum of tokenX over tokenY for each new block 
+    // Time-Wighted Average Price - comulative sum of tokenA over tokenB for each new block 
     uint256 public price0ComulativeLast;
     uint256 public price1ComulativeLast;
 
@@ -40,20 +39,22 @@ contract LiquidityPair is ERC20, Math {
         token0 = _token0;
         token1 = _token1;
     }
+
+    /// @notice mints new liquidity tokens and updates the reserves of the liquidity pair
+    /// @dev on initial call, liquidity is calculated as √(tokenA*tokenB) minus the one-time burn amount, effectively sets the initial price based on the ratio of the supplied tokens
+    /// @dev on subsequent calls, the liquidity is calculated as the minimum of the ratios of the added amounts to the existing reserves
     function mint() public {
         (uint256 _reserve0, uint256 _reserve1, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 =  IERC20(token1).balanceOf(address(this));
         uint256 amount0 = balance0 - _reserve0;
         uint256 amount1 = balance1 -  _reserve1;
-        
+    
         uint256 liquidity;
 
         if (totalSupply == 0){
-            liquidity = Math.sqrt(amount0 * amount1) - MIN_LIQUIDITY;
-            _mint(address(0), MIN_LIQUIDITY); // apon initial deposit, the MIN_LIQUIDITY amount is burned
-        } else {
-            // liquidity is calculated as the minimum of the ratios of the added amounts to the existing reserves
+            liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY_NEEDED;
+            _mint(address(0), MINIMUM_LIQUIDITY_NEEDED); 
             liquidity = Math.min(
                 (amount0 + totalSupply) / _reserve0,
                 (amount1 + totalSupply) / _reserve1
@@ -61,7 +62,7 @@ contract LiquidityPair is ERC20, Math {
         }
 
         require(liquidity >= 0, "Insufficient liquidity minted");
-        // mint LP tokens to user and update internal balances
+
         _mint(msg.sender, liquidity);
         _update(balance0, balance1, _reserve0, _reserve1);
         
@@ -72,21 +73,16 @@ contract LiquidityPair is ERC20, Math {
         return (reserve0, reserve1, blockTimestampLast);
     }
 
-
     function burn() public {
         (uint256 _reserve0, uint256 _reserve1, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
-        // retrieving the balance of LP tokens for the sender's address.
         uint256 liquidity = balanceOf[msg.sender];
-
         uint256 amount0 = (liquidity * balance0) / totalSupply;
         uint256 amount1 = (liquidity * balance1) / totalSupply;
-
         require(amount0 >= 0 || amount1 >= 0, "Insufficient liquidity burned");
 
         _burn(msg.sender, liquidity);
-
         _safeTransfer(token0, msg.sender, amount0);
         _safeTransfer(token1, msg.sender, amount1);
 
@@ -95,7 +91,6 @@ contract LiquidityPair is ERC20, Math {
         balance1 = IERC20(token1).balanceOf(address(this));
 
         _update(balance0, balance1, _reserve0, _reserve1);
-
         emit Burn(msg.sender, amount0, amount1);
     }
 
@@ -115,14 +110,15 @@ contract LiquidityPair is ERC20, Math {
         uint256 balance0 = IERC20(token0).balanceOf(address(this)) - amount0Out;
         uint256 balance1 = IERC20(token1).balanceOf(address(this)) - amount1Out;
 
-        // Calculate input amounts
+        // calculate input amounts
         uint256 amount0In = balance0 > reserve0_ - amount0Out ? balance0 - (reserve0_ - amount0Out) : 0;
         uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
         require(amount0In > 0 || amount1In > 0, "Insufficient input amount");       
 
-        require(balance0 * balance1 >= reserve0_ * reserve1_, "Invalid K"); // enforces invariant
-        _update(balance0, balance1, reserve0_, reserve1_);
+        // enforce invariant
+        require(balance0 * balance1 >= reserve0_ * reserve1_, "Invalid K");
 
+        _update(balance0, balance1, reserve0_, reserve1_);
         emit Swap(msg.sender, amount0Out, amount1Out, to);
     }
 

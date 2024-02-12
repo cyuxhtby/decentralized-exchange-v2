@@ -27,6 +27,7 @@ contract LiquidityPair is ERC20, Math {
     event Mint(address indexed sender, uint256 reserve0, uint256 reserve1);
     event Sync(uint256 reserve0, uint256 reserve1);
     event Burn(address indexed sender, uint256 reserve0, uint256 reserve1);
+    event Swap(address indexed sender, uint256 amount0Out, uint256 amount1Out, address to);
 
     constructor(address token0_, address token1_, string memory _name, string memory _symbol) 
         ERC20(_name, _symbol, 18)
@@ -95,6 +96,33 @@ contract LiquidityPair is ERC20, Math {
         emit Burn(msg.sender, amount0, amount1);
     }
 
+    /// @notice periphery support and swap fees are not enabled
+    /// @dev optimistically transfers tokens to enable atomic swaps
+    function swap(uint256 amount0Out, uint256 amount1Out, address to) public {
+        require(amount0Out != 0 || amount1Out != 0, "Insufficent output amount");
+        require(to != token0 && to != token1, "Invalid to address");
+        (uint256 reserve0_, uint256 reserve1_ ,) = getReserves();
+        require(amount0Out < reserve0_ && amount1Out < reserve1_, "Insufficient liquidity");
+
+        // optimistic transfer
+        if (amount0Out > 0) _safeTransfer(token0, to, amount0Out); 
+        if (amount1Out > 0) _safeTransfer(token1, to, amount1Out);
+
+        // calculate the post transfer balances
+        uint256 balance0 = IERC20(token0).balanceOf(address(this)) - amount0Out;
+        uint256 balance1 = IERC20(token1).balanceOf(address(this)) - amount1Out;
+
+        // Calculate input amounts
+        uint256 amount0In = balance0 > reserve0_ - amount0Out ? balance0 - (reserve0_ - amount0Out) : 0;
+        uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
+        require(amount0In > 0 || amount1In > 0, "Insufficient input amount");       
+
+        require(balance0 * balance1 >= reserve0_ * reserve1_, "Invalid K"); // enforces invariant
+        _update(balance0, balance1, reserve0_, reserve1_);
+
+        emit Swap(msg.sender, amount0Out, amount1Out, to);
+    }
+
     function sync() public {
         (uint256 reserve0_, uint256 reserve1_, ) = getReserves();
         _update(
@@ -132,7 +160,7 @@ contract LiquidityPair is ERC20, Math {
             abi.encodeWithSignature("transfer(address, uint256)", to, amount)
         );
         // if the call was successful, 'data' should be empty or decode to 'true'.
-        require(success || data.length == 0 || !abi.decode(data, (bool)), "Transfer failed");
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "Transfer failed");
     }
 
 

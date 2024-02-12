@@ -18,6 +18,11 @@ contract LiquidityPair is ERC20, Math {
 
     uint256 private reserve0;
     uint256 private reserve1;
+    uint32 private blockTimestampLast;
+
+    // Time-Wighted Average Price - comulative sum of tokenX over tokenY for each new block 
+    uint256 public price0ComulativeLast;
+    uint256 public price1ComulativeLast;
 
     event Mint(address indexed sender, uint256 reserve0, uint256 reserve1);
     event Sync(uint256 reserve0, uint256 reserve1);
@@ -54,17 +59,18 @@ contract LiquidityPair is ERC20, Math {
         require(liquidity >= 0, "Insufficient liquidity minted");
         // mint LP tokens to user and update internal balances
         _mint(msg.sender, liquidity);
-        _update(balance0, balance1);
+        _update(balance0, balance1, _reserve0, _reserve1);
         
         emit Mint(msg.sender, amount0, amount1);  
     }
 
-    function getReserves() public view returns (uint256, uint256, uint32){
-        return (reserve0, reserve1, 0);
+    function getReserves() public view returns (uint256, uint256 , uint32) {
+        return (reserve0, reserve1, blockTimestampLast);
     }
 
 
     function burn() public {
+        (uint256 _reserve0, uint256 _reserve1, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
         // retrieving the balance of LP tokens for the sender's address.
@@ -84,24 +90,37 @@ contract LiquidityPair is ERC20, Math {
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
 
-        _update(balance0, balance1);
+        _update(balance0, balance1, _reserve0, _reserve1);
 
         emit Burn(msg.sender, amount0, amount1);
     }
 
     function sync() public {
-        // (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
+        (uint256 reserve0_, uint256 reserve1_, ) = getReserves();
         _update(
             IERC20(token0).balanceOf(address(this)),
-            IERC20(token1).balanceOf(address(this))
-        )
-        // reserve0_,
-        // reserve1_
+            IERC20(token1).balanceOf(address(this)),
+            reserve0_,
+            reserve1_
+        );
     }
 
-    function _update(uint256 balance0, uint256 balance1) private {
+    /// @dev updates reserves and price accumulators on first call per block 
+    /// @notice requires checks for underflow and overflow errors
+    function _update(uint256 balance0, uint256 balance1, uint256 reserve0_, uint256 reserve1_) private {        
+        uint32 blockTimestamp = uint32(block.timestamp);
+        uint32 timeElapsed = uint32(blockTimestamp - blockTimestampLast);
+
+        // calulates price every block and adds that to the time weighted average price
+        // original implementation utilizes UQ112x112 lib for safe fixed point math
+        if(timeElapsed > 0 && reserve0_ != 0 && reserve1_ != 0){
+            price0ComulativeLast += (reserve1_ / reserve0_) * timeElapsed;
+            price1ComulativeLast += (reserve0_ / reserve1_) * timeElapsed;
+        }
+
         reserve0 = balance0;
         reserve1 = balance1;
+        blockTimestampLast = uint32(block.timestamp);
 
         emit Sync(reserve0, reserve1);
     }
@@ -110,7 +129,7 @@ contract LiquidityPair is ERC20, Math {
         // the call function is a lower level function used to invoke the "transfer" function of the token contract
         // the inputs to the call function are the encoded function signature and arguments
         (bool success, bytes memory data) = token.call(
-            abi.encodeWithSignature("transfer(adress, uint256)", to, amount)
+            abi.encodeWithSignature("transfer(address, uint256)", to, amount)
         );
         // if the call was successful, 'data' should be empty or decode to 'true'.
         require(success || data.length == 0 || !abi.decode(data, (bool)), "Transfer failed");

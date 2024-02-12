@@ -1,62 +1,57 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
-import { Contract } from "ethers";
 
 /**
- * Deploys a contract named "YourContract" using the deployer account and
- * constructor arguments set to the deployer address
+ * Deploys the Factory contract and then uses it to create a LiquidityPair instance
+ * with MockToken contracts as token0 and token1.
  *
  * @param hre HardhatRuntimeEnvironment object.
  */
-const deployYourContract: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  /*
-    On localhost, the deployer account is the one that comes with Hardhat, which is already funded.
-
-    When deploying to live networks (e.g `yarn deploy --network goerli`), the deployer account
-    should have sufficient balance to pay for the gas fees for contract creation.
-
-    You can generate a random account with `yarn generate` which will fill DEPLOYER_PRIVATE_KEY
-    with a random private key in the .env file (then used on hardhat.config.ts)
-    You can run the `yarn account` command to check your balance in every network.
-  */
+const deployFactoryAndLiquidityPair: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
+  const { ethers } = hre;
 
-  const token0 = await deploy("MockToken", {
+  // Deploy MockToken contracts for token0 and token1
+  const token0Deployment = await deploy("MockToken", {
     from: deployer,
     args: ["Token0", "TK0"],
     log: true,
     autoMine: true,
   });
 
-  const token1 = await deploy("MockToken", {
+  const token1Deployment = await deploy("MockToken", {
     from: deployer,
     args: ["Token1", "TK1"],
     log: true,
     autoMine: true,
   });
 
-  const lpTokenName = "Liquidity Provider Token";
-  const lpTokenSymbol = "LP";
-
-  await deploy("LiquidityPair", {
+  // Deploy the Factory contract
+  const factoryDeployment = await deploy("Factory", {
     from: deployer,
-    // Contract constructor arguments
-    args: [token0.address, token1.address, lpTokenName, lpTokenSymbol],
     log: true,
-    // autoMine: can be passed to the deploy function to make the deployment process faster on local networks by
-    // automatically mining the contract deployment transaction. There is no effect on live networks.
     autoMine: true,
   });
 
-  // Get the deployed contract to interact with it after deploying.
-  const LiquidityPair = await hre.ethers.getContract<Contract>("LiquidityPair", deployer);
-  console.log("Token 0", await LiquidityPair.token0());
-  console.log("Token 1", await LiquidityPair.token1());
+  // Convert deployer address string to a Signer object
+  const deployerSigner = await ethers.getSigner(deployer);
+
+  // Get the deployed Factory contract to interact with it using the deployer Signer
+  const FactoryContract = await ethers.getContractAt("Factory", factoryDeployment.address, deployerSigner);
+
+  // Use the Factory to create a LiquidityPair for token0 and token1
+  const createPairTx = await FactoryContract.createPair(token0Deployment.address, token1Deployment.address);
+  await createPairTx.wait(); // Wait for the transaction to be mined
+
+  const pairAddress = await FactoryContract.getPair(token0Deployment.address, token1Deployment.address);
+  console.log(`LiquidityPair address: ${pairAddress}`);
+
+  // Optionally, interact with the LiquidityPair contract using the deployer Signer
+  const LiquidityPair = await ethers.getContractAt("LiquidityPair", pairAddress, deployerSigner);
+  console.log("Token 0 address from LiquidityPair:", await LiquidityPair.token0());
+  console.log("Token 1 address from LiquidityPair:", await LiquidityPair.token1());
 };
 
-export default deployYourContract;
-
-// Tags are useful if you have multiple deploy files and only want to run one of them.
-// e.g. yarn deploy --tags YourContract
-deployYourContract.tags = ["LiquidityPair"];
+export default deployFactoryAndLiquidityPair;
+deployFactoryAndLiquidityPair.tags = ["Factory", "LiquidityPair"];

@@ -15,8 +15,9 @@ contract LiquidityPair is ERC20, Math {
 
     address public token0;
     address public token1;
+    address public factory;
 
-    uint256 private reserve0;
+    uint256 private reserve0; // use smaller type for gas
     uint256 private reserve1;
     uint32 private blockTimestampLast;
 
@@ -29,14 +30,16 @@ contract LiquidityPair is ERC20, Math {
     event Burn(address indexed sender, uint256 reserve0, uint256 reserve1);
     event Swap(address indexed sender, uint256 amount0Out, uint256 amount1Out, address to);
 
-    constructor(address token0_, address token1_, string memory _name, string memory _symbol) 
-        ERC20(_name, _symbol, 18)
-    {
-        token0 = token0_;
-        token1 = token1_;
-        
+    constructor() ERC20("Liquidity Provider Token", "LP", 18) {
+        factory = msg.sender;
     }
 
+    // called once by the factory at time of deployment
+    function initialize(address _token0, address _token1) external {
+        require(msg.sender == factory, 'Not factory');
+        token0 = _token0;
+        token1 = _token1;
+    }
     function mint() public {
         (uint256 _reserve0, uint256 _reserve1, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
@@ -96,7 +99,7 @@ contract LiquidityPair is ERC20, Math {
         emit Burn(msg.sender, amount0, amount1);
     }
 
-    /// @notice periphery support and swap fees are not enabled
+    /// @notice periphery support and swap fees are not enabled, nor reentrant resistant
     /// @dev optimistically transfers tokens to enable atomic swaps
     function swap(uint256 amount0Out, uint256 amount1Out, address to) public {
         require(amount0Out != 0 || amount1Out != 0, "Insufficent output amount");

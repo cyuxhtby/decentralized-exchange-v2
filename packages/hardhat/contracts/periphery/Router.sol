@@ -57,10 +57,10 @@ contract Router {
     }
 
     /// @dev allows users to swap an exact amount of input tokens for as many output tokens as possible
-    function swapExactTokensForTokens() {}
+    function swapExactTokensForTokens() public {}
 
     /// @dev allows users to swap as few input tokens as possible to receive an exact amount of output tokens
-    function swapTokensForExactTokens() {}
+    function swapTokensForExactTokens() public {}
 
     /// @dev executes a series of swaps across a path of token pairs
     function _swap(uint256[] memory amounts, address[] memory path, address to_) internal {

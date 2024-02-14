@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import { LiquidityPair } from "../core/LiquidityPair.sol";
+import { ILiquidityPair } from "../interfaces/ILiquidityPair.sol";
 import { IFactory } from "../interfaces/IFactory.sol";
 import { Library } from "../lib/Library.sol";
 
@@ -39,6 +40,42 @@ contract Router {
         // mint user's LP tokens
         liquidity = LiquidityPair(pairAddress).mint(to);
     }
+
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 liquidity,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        address to
+    ) public returns (uint256 amountA, uint256 amountB) {
+        address pair = Library.pairFor(address(factory), tokenA, tokenB);
+        ILiquidityPair(pair).transferFrom(msg.sender, pair, liquidity);
+        (amountA, amountB) = ILiquidityPair(pair).burn(to);
+        require(amountA > amountAMin, "Insufficient A amount");
+        require(amountB > amountBMin, "Insufficient B amount");
+    }
+
+    /// @dev allows users to swap an exact amount of input tokens for as many output tokens as possible
+    function swapExactTokensForTokens() {}
+
+    /// @dev allows users to swap as few input tokens as possible to receive an exact amount of output tokens
+    function swapTokensForExactTokens() {}
+
+    /// @dev executes a series of swaps across a path of token pairs
+    function _swap(uint256[] memory amounts, address[] memory path, address to_) internal {
+        for(uint256 i = 0; i < path.length - 1; i++){
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0,) = Library.sortTokens(input, output);
+            uint256 amountOut = amounts[i + 1];
+            // conditionaly set a zero value for token being swapped and a non-zero amount for token to be received
+            (uint256 amount0Out, uint256 amount1Out) = input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
+            // for intermediate swaps, set 'to' as the next pair's address; for the final swap, set 'to' as the recipient
+            address to = i < path.length - 2 ? Library.pairFor(address(factory), output, path[i +2]) : to_;
+            // perform swap on pair address
+            ILiquidityPair(Library.pairFor(address(factory), input, output)).swap(amount0Out, amount1Out, to);
+        }
+    } 
 
     function _calculateLiquidity(
         address tokenA, 

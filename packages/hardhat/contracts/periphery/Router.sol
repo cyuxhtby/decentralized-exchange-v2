@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import { LiquidityPair } from "../core/LiquidityPair.sol";
 import { ILiquidityPair } from "../interfaces/ILiquidityPair.sol";
 import { IFactory } from "../interfaces/IFactory.sol";
-import { Library } from "../lib/Library.sol";
+import { Library } from "./Library.sol";
 
 contract Router {
     IFactory factory;
@@ -13,6 +13,8 @@ contract Router {
         factory = IFactory(factoryAddress);
     }
 
+
+/// @notice  Arithmic operation resulted in underflow or overflow. Panic(17)
     function addLiquidity(
         address tokenA, 
         address tokenB, 
@@ -57,10 +59,40 @@ contract Router {
     }
 
     /// @dev allows users to swap an exact amount of input tokens for as many output tokens as possible
-    function swapExactTokensForTokens() public {}
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to
+    ) public returns (uint256[] memory amounts) {
+        amounts = Library.getAmountsOut(address(factory), amountIn, path);
+        require(amounts[amounts.length -1] >= amountOutMin, "Insufficient output amount");
+        _safeTransferFrom(
+            path[0],
+            msg.sender,
+            Library.pairFor(address(factory), path[0], path[1]),
+            amounts[0]
+        );
+        _swap(amounts, path, to);
+    }
 
     /// @dev allows users to swap as few input tokens as possible to receive an exact amount of output tokens
-    function swapTokensForExactTokens() public {}
+    function swapTokensForExactTokens(
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to
+        ) public returns (uint256[] memory amounts) {
+        amounts = Library.getAmountsIn(address(factory), amountOut, path);
+        require(amounts[amounts.length -1] >= amountInMax, "Excessive input amount");
+        _safeTransferFrom(
+            path[0],
+            msg.sender,
+            Library.pairFor(address(factory), path[0], path[1]),
+            amounts[0]
+        );
+        _swap(amounts, path, to);
+    }
 
     /// @dev executes a series of swaps across a path of token pairs
     function _swap(uint256[] memory amounts, address[] memory path, address to_) internal {
